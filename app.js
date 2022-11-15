@@ -38,7 +38,8 @@ mongoose.connect("mongodb://localhost:27017/userDB", { useNewUrlParser: true });
 
 const userSchema = new mongoose.Schema({
     email: String,
-    password: String
+    password: String,
+    secret: String
 });
 
 userSchema.plugin(passportLocalMongoose);
@@ -48,57 +49,57 @@ const User = new mongoose.model("User", userSchema);
 
 passport.use(User.createStrategy());
 
-passport.serializeUser(function(user, done) {
+passport.serializeUser(function (user, done) {
     done(null, user);
-  });
-   
-  passport.deserializeUser(function(user, done) {
+});
+
+passport.deserializeUser(function (user, done) {
     done(null, user);
-  });
+});
 
 passport.use(new GoogleStrategy({
     clientID: process.env.CLIENT_ID,
     clientSecret: process.env.CLIENT_SECRET,
     callbackURL: "http://localhost:3000/auth/google/secrets"
-  },
-  function(accessToken, refreshToken, profile, cb) {
-    User.findOrCreate({ googleId: profile.id }, function (err, user) {
-      return cb(err, user);
-    });
-  }
+},
+    function (accessToken, refreshToken, profile, cb) {
+        User.findOrCreate({ googleId: profile.id }, function (err, user) {
+            return cb(err, user);
+        });
+    }
 ));
 
 passport.use(new TwitterStrategy({
     consumerKey: process.env.TWITTER_CONSUMER_KEY,
     consumerSecret: process.env.TWITTER_CONSUMER_SECRET,
     callbackURL: "http://localhost:3000/auth/twitter/secrets"
-  },
-  function(token, tokenSecret, profile, cb) {
-    User.findOrCreate({ twitterId: profile.id }, function (err, user) {
-      return cb(err, user);
-    });
-  }
+},
+    function (token, tokenSecret, profile, cb) {
+        User.findOrCreate({ twitterId: profile.id }, function (err, user) {
+            return cb(err, user);
+        });
+    }
 ));
 
-app.get('/auth/google/secrets', 
-  passport.authenticate('google', { failureRedirect: '/login' }),
-  function(req, res) {
-    // Successful authentication, redirect home.
-    res.redirect('/secrets');
-});
+app.get('/auth/google/secrets',
+    passport.authenticate('google', { failureRedirect: '/login' }),
+    function (req, res) {
+        // Successful authentication, redirect home.
+        res.redirect('/secrets');
+    });
 
-app.get('/auth/twitter/secrets', 
-  passport.authenticate('twitter', { failureRedirect: '/login' }),
-  function(req, res) {
-    // Successful authentication, redirect home.
-    res.redirect('/');
-  });
+app.get('/auth/twitter/secrets',
+    passport.authenticate('twitter', { failureRedirect: '/login' }),
+    function (req, res) {
+        // Successful authentication, redirect home.
+        res.redirect('/');
+    });
 
 app.get('/', function (req, res) {
     res.render('home');
 });
 
-app.get('/auth/google', passport.authenticate('google',{
+app.get('/auth/google', passport.authenticate('google', {
     scope: ['profile']
 }));
 
@@ -115,12 +116,51 @@ app.get('/register', function (req, res) {
 });
 
 app.get("/secrets", function (req, res) {
+    User.find({"secret": {$ne: null}}, function(err, foundUsers){
+        res.render("secrets", {usersWithSecrets: foundUsers});
+    });
+});
+
+app.get("/submit", function (req, res) {
     if (req.isAuthenticated()) {
-        res.render("secrets");
+        res.render("submit");
     } else {
         res.redirect("/login");
     }
 });
+
+app.post("/submit", function (req, res) {
+    const submittedSecret = req.body.secret;
+
+    console.log(req.user);
+    res.redirect("/secrets");
+    User.findById(req.user._id, function (err, foundUser) {
+        if (err) {
+            console.log(err);
+        } else {
+            console.log(foundUser);
+            foundUser.secret = submittedSecret;
+            console.log(foundUser);
+            foundUser.save(function(){
+    
+            });
+        }
+    });
+    // User.findById(req.user.id, function (err, foundUser) {
+    //     if (err) {
+    //         console.log(err);
+    //     } else {
+
+    //         foundUser.secret = submittedSecret;
+    //         console.log("exe");
+    //         foundUser.save(function (req, res) {
+    //             res.redirect("/secret");
+    //         });
+    //     }
+    // });
+});
+
+
 
 app.post('/register', function (req, res) {
     User.register({ username: req.body.username }, req.body.password, function (err, user) {
@@ -153,8 +193,8 @@ app.post("/login", function (req, res) {
 });
 
 app.get("/logout", function (req, res) {
-    req.logout(function(err){
-        if(err){
+    req.logout(function (err) {
+        if (err) {
             console.log(err);
         }
     });
